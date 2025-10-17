@@ -50,16 +50,17 @@ app.post("/save", async (req, res) => {
     }
 
     const ref = db.ref("users");
-    await ref.push({ name, email, timestamp: Date.now() });
+    const newRef = ref.push();
+    await newRef.set({ name, email, timestamp: Date.now() });
 
-    res.json({ status: "success", message: "Data saved!" });
+    res.json({ status: "success", message: "Data saved!", id: newRef.key });
   } catch (err) {
     console.error("Error saving data:", err);
     res.status(500).json({ status: "error", message: err.message });
   }
 });
 
-// Optional: Fetch all users
+// Fetch all users
 app.get("/users", async (req, res) => {
   try {
     const snapshot = await db.ref("users").once("value");
@@ -69,6 +70,37 @@ app.get("/users", async (req, res) => {
   }
 });
 
+// Update user
+app.put("/update/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ status: "error", message: "Name and email required" });
+    }
+
+    const ref = db.ref(`users/${id}`);
+    await ref.update({ name, email });
+
+    res.json({ status: "success", message: "Data updated!" });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
+// Delete user
+app.delete("/delete/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ref = db.ref(`users/${id}`);
+    await ref.remove();
+    res.json({ status: "success", message: "Data deleted!" });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
 // ---------------------- START SERVER ----------------------
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🔥 Server started on port ${PORT}`));
+
