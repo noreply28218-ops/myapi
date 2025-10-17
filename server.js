@@ -1,24 +1,58 @@
-const express = require('express');
-const app = express();
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
+const admin = require("firebase-admin");
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Example route
-app.get('/', (req, res) => {
-  res.json({ message: "API is running!" });
+// Initialize Firebase Admin SDK
+const serviceAccount = require("./firebase-key.json");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://android-200e6-default-rtdb.asia-southeast1.firebasedatabase.app"
 });
 
-// Example data storage route (in-memory)
-const users = {};
-app.post('/data/:userId', (req, res) => {
-  users[req.params.userId] = req.body;
-  res.json({ status: "saved" });
+const db = admin.database();
+
+// 🧠 Test route
+app.get("/", (req, res) => {
+  res.json({ message: "Firebase API is running 🚀" });
 });
 
-app.get('/data/:userId', (req, res) => {
-  res.json(users[req.params.userId] || {});
+// ✅ Save data
+app.post("/save", async (req, res) => {
+  try {
+    const { userId, data } = req.body;
+    if (!userId || !data) return res.status(400).json({ error: "Missing userId or data" });
+
+    await db.ref(`users/${userId}`).set(data);
+    res.json({ status: "success", saved: data });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 📥 Get data
+app.get("/get/:userId", async (req, res) => {
+  try {
+    const snapshot = await db.ref(`users/${req.params.userId}`).once("value");
+    res.json(snapshot.val() || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔄 Update data
+app.post("/update", async (req, res) => {
+  try {
+    const { userId, data } = req.body;
+    await db.ref(`users/${userId}`).update(data);
+    res.json({ status: "updated", data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
