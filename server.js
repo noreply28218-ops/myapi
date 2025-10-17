@@ -4,17 +4,16 @@ import admin from "firebase-admin";
 const app = express();
 app.use(express.json());
 
-// Decode base64 environment variable
 if (!process.env.FIREBASE_KEY) {
-  console.error("❌ FIREBASE_KEY is missing!");
+  console.error("❌ FIREBASE_KEY not found");
   process.exit(1);
 }
 
 let serviceAccount;
 try {
-  serviceAccount = JSON.parse(
-    Buffer.from(process.env.FIREBASE_KEY, "base64").toString("utf8")
-  );
+  const decoded = Buffer.from(process.env.FIREBASE_KEY, "base64").toString("utf8");
+  serviceAccount = JSON.parse(decoded);
+  console.log("✅ FIREBASE_KEY decoded successfully");
 } catch (err) {
   console.error("❌ Failed to parse FIREBASE_KEY:", err);
   process.exit(1);
@@ -22,25 +21,19 @@ try {
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL:
-    "https://android-200e6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL: "https://android-200e6-default-rtdb.asia-southeast1.firebasedatabase.app"
 });
 
 const db = admin.database();
 
-// Test route
-app.get("/", (req, res) => {
-  res.json({ message: "Firebase API is running 🚀" });
-});
+app.get("/", (req, res) => res.json({ message: "Firebase API is running 🚀" }));
 
-// Save data route
 app.post("/save", async (req, res) => {
   try {
     const { name } = req.body;
     await db.ref("test").push({ name, time: Date.now() });
     res.json({ status: "success", message: "Data saved!" });
   } catch (e) {
-    console.error(e);
     res.status(500).json({ status: "error", message: e.message });
   }
 });
