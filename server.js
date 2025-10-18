@@ -4,8 +4,8 @@ import cors from "cors";
 import admin from "firebase-admin";
 
 const app = express();
-app.use(cors()); // Enable CORS for all origins
-app.use(express.json()); // Parse JSON body
+app.use(cors());
+app.use(express.json());
 
 // 🔐 Firebase Key
 if (!process.env.FIREBASE_KEY) {
@@ -36,65 +36,102 @@ const db = admin.database();
 
 // ---------------------- ROUTES ----------------------
 
-// Health check
+// ✅ Health check
 app.get("/", (req, res) => {
-  res.json({ message: "Firebase API is running 🚀" });
+  res.json({ message: "Firebase Dynamic API is running 🚀" });
 });
 
-// Save data
+// ✅ Save ANY data (auto-detect JSON type)
 app.post("/save", async (req, res) => {
   try {
-    const { name, email } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ status: "error", message: "Name and email required" });
+    const data = req.body;
+
+    if (!data || Object.keys(data).length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "No data provided in request body",
+      });
     }
 
-    const ref = db.ref("users");
-    const newRef = ref.push();
-    await newRef.set({ name, email, timestamp: Date.now() });
+    // Push data dynamically with unique ID
+    const ref = db.ref("data").push();
+    const payload = {
+      id: ref.key,
+      type: typeof data,
+      content: data,
+      timestamp: Date.now(),
+    };
 
-    res.json({ status: "success", message: "Data saved!", id: newRef.key });
+    await ref.set(payload);
+
+    res.json({
+      status: "success",
+      message: "Data saved dynamically!",
+      id: ref.key,
+    });
   } catch (err) {
-    console.error("Error saving data:", err);
+    console.error("❌ Error saving data:", err);
     res.status(500).json({ status: "error", message: err.message });
   }
 });
 
-// Fetch all users
-app.get("/users", async (req, res) => {
+// ✅ Fetch specific data by ID
+app.get("/fetch/:id", async (req, res) => {
   try {
-    const snapshot = await db.ref("users").once("value");
-    res.json(snapshot.val() || {});
+    const id = req.params.id;
+    const snapshot = await db.ref(`data/${id}`).once("value");
+
+    if (!snapshot.exists()) {
+      return res.status(404).json({ status: "error", message: "Data not found" });
+    }
+
+    res.json({ status: "success", data: snapshot.val() });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
   }
 });
 
-// Update user
+// ✅ Update data by ID (merge with existing)
 app.put("/update/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, email } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ status: "error", message: "Name and email required" });
+    const id = req.params.id;
+    const newData = req.body;
+
+    if (!newData || Object.keys(newData).length === 0) {
+      return res.status(400).json({ status: "error", message: "No data provided" });
     }
 
-    const ref = db.ref(`users/${id}`);
-    await ref.update({ name, email });
+    const ref = db.ref(`data/${id}`);
+    const snapshot = await ref.once("value");
 
-    res.json({ status: "success", message: "Data updated!" });
+    if (!snapshot.exists()) {
+      return res.status(404).json({ status: "error", message: "Data not found" });
+    }
+
+    await ref.update({
+      content: newData,
+      updatedAt: Date.now(),
+    });
+
+    res.json({ status: "success", message: "Data updated dynamically!" });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
   }
 });
 
-// Delete user
+// ✅ Delete specific data by ID
 app.delete("/delete/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const ref = db.ref(`users/${id}`);
+    const id = req.params.id;
+    const ref = db.ref(`data/${id}`);
+    const snapshot = await ref.once("value");
+
+    if (!snapshot.exists()) {
+      return res.status(404).json({ status: "error", message: "Data not found" });
+    }
+
     await ref.remove();
-    res.json({ status: "success", message: "Data deleted!" });
+    res.json({ status: "success", message: "Data deleted successfully!" });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
   }
@@ -102,5 +139,5 @@ app.delete("/delete/:id", async (req, res) => {
 
 // ---------------------- START SERVER ----------------------
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🔥 Server started on port ${PORT}`));
+app.listen(PORT, () => console.log(`🔥 Dynamic Server started on port ${PORT}`));
 
